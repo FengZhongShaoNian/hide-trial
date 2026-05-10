@@ -5,9 +5,14 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.ProjectActivity;
+import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.WindowManager;
+import com.intellij.openapi.wm.impl.customFrameDecorations.header.toolbar.ToolbarFrameHeader;
 import com.intellij.openapi.wm.impl.status.IdeStatusBarImpl;
+import com.intellij.ui.components.JBLayeredPane;
+import com.intellij.openapi.wm.impl.customFrameDecorations.frameButtons.LinuxFrameButton;
+import com.intellij.util.Function;
 import com.intellij.util.ReflectionUtil;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
@@ -84,7 +89,45 @@ public class HideTrial implements ProjectActivity {
         });
         t.start();
 
-
+        hideTitleButtons(project, continuation);
         return null;
+    }
+
+    // 在niri上隐藏标题栏的最小化/最大化/关闭按钮
+    public void hideTitleButtons(@NonNull Project project, @NonNull Continuation<? super Unit> continuation){
+        LOG.warn("enter hideTitleButtons method");
+        if ("niri".equals(System.getenv("XDG_CURRENT_DESKTOP"))){
+            LOG.warn("XDG_CURRENT_DESKTOP is niri");
+            IdeFrame ideFrame = WindowManager.getInstance().getIdeFrame(project);
+            if (ideFrame != null){
+                JComponent component = ideFrame.getComponent();
+                LOG.warn("componentName:" + component.getName() + ",class: " + component.getClass());
+                JRootPane rootPane = component.getRootPane();
+                findAndHideComponent(
+                        rootPane,
+                        "com.intellij.openapi.wm.impl.customFrameDecorations.frameButtons.LinuxFrameButton",
+                        (linuxFrameButton -> {
+                            LOG.warn("Hide LinuxFrameButton: " + linuxFrameButton.getName());
+                            linuxFrameButton.setVisible(false);
+                            return null;
+                        })
+                );
+            }
+        }
+    }
+
+    private static void findAndHideComponent(Container parent, String className, Function<LinuxFrameButton, Void> handler) {
+        if (parent == null) return;
+
+        // 检查当前组件
+        if (parent.getClass().getName().equals(className)) {
+            handler.apply((LinuxFrameButton) parent);
+            return;
+        }
+
+        // 递归检查子组件
+        for (Component child : parent.getComponents()) {
+            findAndHideComponent((Container) child, className, handler);
+        }
     }
 }
